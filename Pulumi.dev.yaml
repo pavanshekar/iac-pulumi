@@ -1,0 +1,8 @@
+encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
+config:
+  iacpulumi:awsRegion: us-east-2
+  iacpulumi:myConfigKey: AKIAZR5DNCLH5CMNNTLP
+  iacpulumi:mySecretConfigKey:
+    secure: v1:6MXDvBtPzulxeM5S:F4Sbo80m8Su0NIJq1oZU3HqfGuyPO5wIX+ve3xl0G272GsVMjtoVyOZp27np0XTQSKWXib4Czl8=
+  iacpulumi:numberOfSubnets: "6"
+  iacpulumi:vpcCidrBlock: 10.0.0.0/16
