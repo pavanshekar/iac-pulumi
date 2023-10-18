@@ -1,8 +1,5 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
   iacpulumi:amiId: ami-02daeb8b794e00e45
-  iacpulumi:destinationCidrBlock: 0.0.0.0/0
-  iacpulumi:myConfigKey: AKIAZR5DNCLH5CMNNTLP
-  iacpulumi:mySecretConfigKey:
-    secure: v1:6MXDvBtPzulxeM5S:F4Sbo80m8Su0NIJq1oZU3HqfGuyPO5wIX+ve3xl0G272GsVMjtoVyOZp27np0XTQSKWXib4Czl8=
   iacpulumi:vpcCidrBlock: 10.0.0.0/16
+  iacpulumi:destinationCidrBlock: 0.0.0.0/0
