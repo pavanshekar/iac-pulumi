@@ -1,5 +1,16 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
-  iacpulumi:amiId: ami-02daeb8b794e00e45
-  iacpulumi:vpcCidrBlock: 10.0.0.0/16
+  iacpulumi:amiId: ami-061f127d38020ec94
+  iacpulumi:dbName: csye6225
+  iacpulumi:dbPassword:
+    secure: v1:M8dRELo9ju/yOqYS:HrY3DH6pE2MEqzsYfdl3muanL23cxCC7LuA=
   iacpulumi:destinationCidrBlock: 0.0.0.0/0
+  iacpulumi:engine: mariadb
+  iacpulumi:identifier: csye6225
+  iacpulumi:instanceClass: db.t2.micro
+  iacpulumi:instanceType: t2.micro
+  iacpulumi:keyName: key-pair
+  iacpulumi:username: csye6225
+  iacpulumi:volumeSize: "25"
+  iacpulumi:volumeType: gp2
+  iacpulumi:vpcCidrBlock: 10.0.0.0/16
