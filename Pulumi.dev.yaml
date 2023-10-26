@@ -1,6 +1,6 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
-  iacpulumi:amiId: ami-061f127d38020ec94
+  iacpulumi:amiId: ami-0251a084bc9bd94d8
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
     secure: v1:M8dRELo9ju/yOqYS:HrY3DH6pE2MEqzsYfdl3muanL23cxCC7LuA=
