@@ -1,6 +1,8 @@
 const pulumi = require("@pulumi/pulumi");
 const aws = require("@pulumi/aws");
 const mysql = require("@pulumi/aws/rds");
+const route53 = require("@pulumi/aws/route53");
+const iam = require("@pulumi/aws/iam");
 
 const config = new pulumi.Config();
 const vpcCidrBlock = config.require("vpcCidrBlock");
@@ -20,6 +22,10 @@ const instanceType = config.require("instanceType");
 const keyName = config.require("keyName");
 const volumeSize = config.require("volumeSize");
 const volumeType = config.require("volumeType");
+
+const domainName = config.require("domainName");
+const hostedZoneId = config.require("hostedZoneId");
+const applicationPort = config.require("applicationPort");
 
 const availableZonesPromise = aws.getAvailabilityZones({ region: currentRegion });
 
@@ -46,6 +52,8 @@ availableZonesPromise.then(availableZones => {
         ],
         egress: [
             { protocol: "tcp", fromPort: 3306, toPort: 3306, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "udp", fromPort: 8125, toPort: 8125, cidrBlocks: ["0.0.0.0/0"] },
         ],
         tags: {
             Name: "applicationSecurityGroup",
@@ -131,7 +139,7 @@ availableZonesPromise.then(availableZones => {
     });
 
     const dbParameterGroup = new mysql.ParameterGroup("db-parameter-group", {
-        family: "mariadb10.6", 
+        family: "mariadb10.6",
         parameters: [{ name: "character_set_client", value: "utf8" }],
     });
 
@@ -155,6 +163,29 @@ availableZonesPromise.then(availableZones => {
         publiclyAccessible: false,
     });
 
+    const cloudWatchRole = new iam.Role("cloudWatchRole", {
+        assumeRolePolicy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Action: "sts:AssumeRole",
+                Effect: "Allow",
+                Principal: {
+                    Service: "ec2.amazonaws.com",
+                },
+            }],
+        }),
+        path: "/",
+    });
+
+    const cloudWatchPolicyAttachment = new iam.RolePolicyAttachment("cloudWatchPolicyAttachment", {
+        role: cloudWatchRole.name,
+        policyArn: "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+    });
+
+    const cloudWatchInstanceProfile = new iam.InstanceProfile("cloudWatchInstanceProfile", {
+        role: cloudWatchRole.name,
+    });
+
     const userData = pulumi.all([rdsInstance.endpoint, rdsInstance.port, rdsInstance.dbName, rdsInstance.username, rdsInstance.password]).apply(([endpoint, port, dbName, username, password]) => {
         const [hostname] = endpoint.split(":");
         return `#!/bin/bash
@@ -166,6 +197,8 @@ availableZonesPromise.then(availableZones => {
     sudo systemctl daemon-reload
     sudo systemctl enable assignments-api
     sudo systemctl start assignments-api
+    sudo systemctl restart assignments-api
+    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent.json -s
     `;
     });
     const ec2Instance = new aws.ec2.Instance("appInstance", {
@@ -179,10 +212,19 @@ availableZonesPromise.then(availableZones => {
             volumeSize: volumeSize,
             volumeType: volumeType,
         },
+        iamInstanceProfile: cloudWatchInstanceProfile.name,
         disableApiTermination: false,
         tags: {
             Name: "ApplicationInstance",
         },
+    });
+
+    const aRecord = new route53.Record("applicationARecord", {
+        zoneId: hostedZoneId,
+        name: domainName,
+        type: "A",
+        ttl: 300,
+        records: [ec2Instance.publicIp],
     });
 
     exports.vpcDetails = {
@@ -225,5 +267,10 @@ availableZonesPromise.then(availableZones => {
         id: ec2Instance.id,
         publicIp: ec2Instance.publicIp,
         privateIp: ec2Instance.privateIp,
+    };
+
+    exports.hostedZoneDetails = {
+        domainName: domainName,
+        hostedZoneId: hostedZoneId,
     };
 });

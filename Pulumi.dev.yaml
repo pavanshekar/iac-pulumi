@@ -1,11 +1,14 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
-  iacpulumi:amiId: ami-063fae8c6b89ca5b2
+  iacpulumi:amiId: ami-01098e5bc6529888e
+  iacpulumi:applicationPort: "8080"
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
     secure: v1:M8dRELo9ju/yOqYS:HrY3DH6pE2MEqzsYfdl3muanL23cxCC7LuA=
   iacpulumi:destinationCidrBlock: 0.0.0.0/0
+  iacpulumi:domainName: dev.pavancloud.me
   iacpulumi:engine: mariadb
+  iacpulumi:hostedZoneId: Z05726301FHFFLQB8LB51
   iacpulumi:identifier: csye6225
   iacpulumi:instanceClass: db.t2.micro
   iacpulumi:instanceType: t2.micro
