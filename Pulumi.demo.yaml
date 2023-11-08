@@ -1,10 +1,10 @@
 encryptionsalt: v1:TcqcJKfUCq8=:v1:49sB6jAvHAuSXOsr:eFB2tCCUvkSwI+W1tAlmDWsthN8kFQ==
 config:
-  iacpulumi:amiId: ami-01098e5bc6529888e
+  iacpulumi:amiId: ami-066b5d97e4d8cf42c
   iacpulumi:applicationPort: "8080"
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
-    secure: v1:M8dRELo9ju/yOqYS:HrY3DH6pE2MEqzsYfdl3muanL23cxCC7LuA=
+    secure: v1:AV3sOqa132kiqhdR:oferZA+lT6iJw6reKb+yjWSZC7SmyczYfy0=
   iacpulumi:destinationCidrBlock: 0.0.0.0/0
   iacpulumi:domainName: demo.pavancloud.me
   iacpulumi:engine: mariadb

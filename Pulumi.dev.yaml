@@ -1,6 +1,6 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
-  iacpulumi:amiId: ami-01098e5bc6529888e
+  iacpulumi:amiId: ami-066b5d97e4d8cf42c
   iacpulumi:applicationPort: "8080"
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
