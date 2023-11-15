@@ -20,8 +20,6 @@ const dbPassword = config.requireSecret("dbPassword");
 
 const instanceType = config.require("instanceType");
 const keyName = config.require("keyName");
-const volumeSize = config.require("volumeSize");
-const volumeType = config.require("volumeType");
 
 const domainName = config.require("domainName");
 const hostedZoneId = config.require("hostedZoneId");
@@ -41,19 +39,27 @@ availableZonesPromise.then(availableZones => {
         },
     });
 
+    const loadBalancerSecurityGroup = new aws.ec2.SecurityGroup("loadBalancerSecurityGroup", {
+        vpcId: vpc.id,
+        description: "Security group for the load balancer",
+        ingress: [
+            { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
+        ],
+        egress: [
+            { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"], ipv6CidrBlocks: ["::/0"], },
+        ],
+    });
+
     const appSecurityGroup = new aws.ec2.SecurityGroup("appSecurityGroup", {
         vpcId: vpc.id,
         description: "Security group for application servers",
         ingress: [
             { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
-            { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
-            { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
-            { protocol: "tcp", fromPort: 8080, toPort: 8080, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "tcp", fromPort: applicationPort, toPort: applicationPort, securityGroups: [loadBalancerSecurityGroup.id] },
         ],
         egress: [
-            { protocol: "tcp", fromPort: 3306, toPort: 3306, cidrBlocks: ["0.0.0.0/0"] },
-            { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
-            { protocol: "udp", fromPort: 8125, toPort: 8125, cidrBlocks: ["0.0.0.0/0"] },
+            { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"], ipv6CidrBlocks: ["::/0"], },
         ],
         tags: {
             Name: "applicationSecurityGroup",
@@ -201,76 +207,127 @@ availableZonesPromise.then(availableZones => {
     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent.json -s
     `;
     });
-    const ec2Instance = new aws.ec2.Instance("appInstance", {
-        ami: amiId,
+
+    const userDataEncoded = userData.apply(ud => Buffer.from(ud).toString('base64'));
+
+    const launchTemplate = new aws.ec2.LaunchTemplate("appLaunchTemplate", {
+        imageId: amiId,
         instanceType: instanceType,
         keyName: keyName,
-        vpcSecurityGroupIds: [appSecurityGroup.id],
-        subnetId: resources.publicSubnets[0],
-        userData: userData,
-        rootBlockDevice: {
-            volumeSize: volumeSize,
-            volumeType: volumeType,
+        userData: userDataEncoded,
+        iamInstanceProfile: {
+            name: cloudWatchInstanceProfile.name,
         },
-        iamInstanceProfile: cloudWatchInstanceProfile.name,
-        disableApiTermination: false,
-        tags: {
-            Name: "ApplicationInstance",
+        networkInterfaces: [{
+            associatePublicIpAddress: true,
+            deleteOnTermination: true,
+            deviceIndex: 0,
+            securityGroups: [appSecurityGroup.id],
+        }],
+    });
+
+    const targetGroup = new aws.lb.TargetGroup("appTargetGroup", {
+        port: applicationPort,
+        protocol: "HTTP",
+        vpcId: vpc.id,
+        targetType: "instance",
+        healthCheck: {
+            enabled: true,
+            interval: 30,
+            path: "/healthz/",
+            port: "8080",
+            protocol: "HTTP",
+            healthyThreshold: 2,
+            unhealthyThreshold: 2,
+            timeout: 5,
         },
     });
 
-    const aRecord = new route53.Record("applicationARecord", {
+    const autoScalingGroup = new aws.autoscaling.Group("autoScalingGroup", {
+        launchTemplate: {
+            id: launchTemplate.id,
+            version: "$Latest",
+        },
+        minSize: 1,
+        maxSize: 3,
+        desiredCapacity: 1,
+        vpcZoneIdentifiers: resources.publicSubnets,
+        cooldown: 60,
+        targetGroupArns: [targetGroup.arn],
+        tags: [
+            { key: "Name", value: "AutoScalingGroup", propagateAtLaunch: true },
+        ],
+    });
+
+    const scaleUpPolicy = new aws.autoscaling.Policy("scaleUpPolicy", {
+        autoscalingGroupName: autoScalingGroup,
+        adjustmentType: "ChangeInCapacity",
+        scalingAdjustment: 1,
+        cooldown: 60,
+        metricAggregationType: "Average",
+    });
+
+    const scaleDownPolicy = new aws.autoscaling.Policy("scaleDownPolicy", {
+        autoscalingGroupName: autoScalingGroup,
+        adjustmentType: "ChangeInCapacity",
+        scalingAdjustment: -1,
+        cooldown: 60,
+        metricAggregationType: "Average",
+    });
+
+    const scaleUpAlarm = new aws.cloudwatch.MetricAlarm("scaleUpAlarm", {
+        comparisonOperator: "GreaterThanThreshold",
+        evaluationPeriods: 1,
+        metricName: "CPUUtilization",
+        namespace: "AWS/EC2",
+        period: 60,
+        statistic: "Average",
+        threshold: 5,
+        alarmActions: [scaleUpPolicy.arn],
+        dimensions: {
+            AutoScalingGroupName: autoScalingGroup.name,
+        },
+    });
+
+    const scaleDownAlarm = new aws.cloudwatch.MetricAlarm("scaleDownAlarm", {
+        comparisonOperator: "LessThanThreshold",
+        evaluationPeriods: 1,
+        metricName: "CPUUtilization",
+        namespace: "AWS/EC2",
+        period: 60,
+        statistic: "Average",
+        threshold: 3,
+        alarmActions: [scaleDownPolicy.arn],
+        dimensions: {
+            AutoScalingGroupName: autoScalingGroup.name,
+        },
+    });
+
+    const appLoadBalancer = new aws.lb.LoadBalancer("appLoadBalancer", {
+        internal: false,
+        loadBalancerType: "application",
+        securityGroups: [loadBalancerSecurityGroup.id],
+        subnets: resources.publicSubnets,
+    });
+
+    const listener = new aws.lb.Listener("appListener", {
+        loadBalancerArn: appLoadBalancer.arn,
+        port: 80,
+        defaultActions: [{
+            type: "forward",
+            targetGroupArn: targetGroup.arn,
+        }],
+    });
+
+    const appAliasRecord = new route53.Record("appAliasRecord", {
         zoneId: hostedZoneId,
         name: domainName,
         type: "A",
-        ttl: 300,
-        records: [ec2Instance.publicIp],
+        aliases: [{
+            name: appLoadBalancer.dnsName,
+            zoneId: appLoadBalancer.zoneId,
+            evaluateTargetHealth: true,
+        }],
     });
 
-    exports.vpcDetails = {
-        id: vpc.id,
-        cidrBlock: vpc.cidrBlock,
-    };
-
-    exports.publicSubnetDetails = resources.publicSubnets.map((id, index) => ({
-        [`publicSubnet${index + 1}`]: id,
-    }));
-
-    exports.privateSubnetDetails = resources.privateSubnets.map((id, index) => ({
-        [`privateSubnet${index + 1}`]: id,
-    }));
-
-    exports.routeTableDetails = {
-        publicRouteTableId: publicRouteTable.id,
-        privateRouteTableId: privateRouteTable.id,
-    };
-
-    exports.securityGroupDetails = {
-        appSecurityGroupId: appSecurityGroup.id,
-        dbSecurityGroupId: dbSecurityGroup.id,
-    };
-
-    exports.dbSubnetGroupDetails = {
-        dbSubnetGroupName: dbSubnetGroup.name,
-        subnetIds: dbSubnetGroup.subnetIds,
-    };
-
-    exports.dbInstanceDetails = {
-        id: rdsInstance.id,
-        endpoint: rdsInstance.endpoint,
-        port: rdsInstance.port,
-        username: rdsInstance.username,
-        password: rdsInstance.password,
-    };
-
-    exports.ec2InstanceDetails = {
-        id: ec2Instance.id,
-        publicIp: ec2Instance.publicIp,
-        privateIp: ec2Instance.privateIp,
-    };
-
-    exports.hostedZoneDetails = {
-        domainName: domainName,
-        hostedZoneId: hostedZoneId,
-    };
 });
