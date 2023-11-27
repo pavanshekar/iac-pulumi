@@ -1,8 +1,10 @@
 const pulumi = require("@pulumi/pulumi");
 const aws = require("@pulumi/aws");
+const gcp = require("@pulumi/gcp");
 const mysql = require("@pulumi/aws/rds");
 const route53 = require("@pulumi/aws/route53");
 const iam = require("@pulumi/aws/iam");
+const sns = require("@pulumi/aws/sns");
 
 const config = new pulumi.Config();
 const vpcCidrBlock = config.require("vpcCidrBlock");
@@ -24,6 +26,12 @@ const keyName = config.require("keyName");
 const domainName = config.require("domainName");
 const hostedZoneId = config.require("hostedZoneId");
 const applicationPort = config.require("applicationPort");
+
+const mailgunApiKey = config.requireSecret("mailgunApiKey");
+const mailgunDomain = config.require("mailgunDomain");
+
+const gcpConfig = new pulumi.Config("gcp"); 
+const gcpProjectId = gcpConfig.require("project");
 
 const availableZonesPromise = aws.getAvailabilityZones({ region: currentRegion });
 
@@ -188,11 +196,133 @@ availableZonesPromise.then(availableZones => {
         policyArn: "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
     });
 
+    const mySnsTopic = new sns.Topic("mySnsTopic", {
+        displayName: "My SNS Topic for Lambda Notifications",
+    });
+
+    const snsPublishPolicy = new aws.iam.Policy("snsPublishPolicy", {
+        description: "Policy to allow publishing to the SNS topic",
+        policy: {
+            Version: "2012-10-17",
+            Statement: [
+                {
+                    Effect: "Allow",
+                    Action: "sns:Publish",
+                    Resource: mySnsTopic.arn,
+                },
+            ],
+        },
+    });
+
+    const snsPublishPolicyAttachment = new aws.iam.PolicyAttachment("snsPublishPolicyAttachment", {
+        policyArn: snsPublishPolicy.arn,
+        roles: [cloudWatchRole.name],
+    });
+
     const cloudWatchInstanceProfile = new iam.InstanceProfile("cloudWatchInstanceProfile", {
         role: cloudWatchRole.name,
     });
 
-    const userData = pulumi.all([rdsInstance.endpoint, rdsInstance.port, rdsInstance.dbName, rdsInstance.username, rdsInstance.password]).apply(([endpoint, port, dbName, username, password]) => {
+    const bucket = new gcp.storage.Bucket("myBucket", {
+        name: "csye6225-pavancloud-bucket",
+        location: "US",
+        forceDestroy: true,
+    });
+
+    const serviceAccount = new gcp.serviceaccount.Account("myServiceAccount", {
+        accountId: "my-service-account",
+        displayName: "My Service Account",
+    });
+
+    const iamBinding = new gcp.projects.IAMBinding("serviceAccountStorageAdmin", {
+        project: gcpProjectId,
+        members: [pulumi.interpolate`serviceAccount:${serviceAccount.email}`],
+        role: "roles/storage.objectAdmin", 
+    });
+    
+
+    const serviceAccountKeys = new gcp.serviceaccount.Key("myServiceAccountKeys", {
+        serviceAccountId: serviceAccount.email,
+    });
+
+    const dynamoTable = new aws.dynamodb.Table("myDynamoTable", {
+        attributes: [
+            { name: "email", type: "S" },
+        ],
+        hashKey: "email",
+        billingMode: "PAY_PER_REQUEST",
+    });
+
+    const lambdaRole = new aws.iam.Role("lambdaRole", {
+        assumeRolePolicy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Action: "sts:AssumeRole",
+                Effect: "Allow",
+                Principal: {
+                    Service: "lambda.amazonaws.com",
+                },
+            }],
+        }),
+    });
+
+    const lambdaPolicy = new aws.iam.Policy("lambdaPolicy", {
+        policy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Action: [
+                    "sns:Publish",
+                    "sns:Subscribe",
+                    "dynamodb:*",
+                    "s3:*",
+                ],
+                Effect: "Allow",
+                Resource: "*",
+            }],
+        }),
+    });
+
+    const lambdaPolicyAttachment = new aws.iam.RolePolicyAttachment("lambdaPolicyAttachment", {
+        role: lambdaRole.name,
+        policyArn: lambdaPolicy.arn,
+    });
+
+    const lambdaFunction = new aws.lambda.Function("myLambdaFunction", {
+        runtime: aws.lambda.Runtime.NodeJS18dX,
+        role: lambdaRole.arn,
+        handler: "index.handler",
+        code: new pulumi.asset.AssetArchive({
+            ".": new pulumi.asset.FileArchive("../serverless") // Path to your Lambda function code
+        }),
+        timeout: 30,
+        environment: {
+            variables: {
+                GOOGLE_CLOUD_BUCKET: bucket.name,
+                MAILGUN_API_KEY: mailgunApiKey,
+                MAILGUN_DOMAIN: mailgunDomain,
+                DYNAMODB_TABLE_NAME: dynamoTable.name,
+                GCP_SERVICE_ACCOUNT_KEY: serviceAccountKeys.privateKey.apply(key => key),
+            },
+        },
+    });
+
+    const lambdaPermission = new aws.lambda.Permission("snsLambdaPermission", {
+        action: "lambda:InvokeFunction",
+        function: lambdaFunction.arn,
+        principal: "sns.amazonaws.com",
+        sourceArn: mySnsTopic.arn,
+    });
+
+    const lambdaSubscription = new aws.sns.TopicSubscription("myLambdaSubscription", {
+        topic: mySnsTopic.arn,
+        protocol: "lambda",
+        endpoint: lambdaFunction.arn,
+    });
+
+
+    const aws_region = availableZones.names[0].slice(0, -1);
+
+    const userData = pulumi.all([rdsInstance.endpoint, rdsInstance.port, rdsInstance.dbName, rdsInstance.username, rdsInstance.password, aws_region, mySnsTopic.arn]).apply(([endpoint, port, dbName, username, password, region, snsTopicArn]) => {
         const [hostname] = endpoint.split(":");
         return `#!/bin/bash
     echo "DB_HOST=${hostname}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
@@ -200,6 +330,8 @@ availableZonesPromise.then(availableZones => {
     echo "DB_USER=${username}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
     echo "DB_PASSWORD=${password}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
     echo "DB_DATABASE=${dbName}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
+    echo "AWS_REGION=${region}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
+    echo "SNS_TOPIC_ARN=${snsTopicArn}" >> /opt/AssignmentsAPI/AssignmentsAPI/.env
     sudo systemctl daemon-reload
     sudo systemctl enable assignments-api
     sudo systemctl start assignments-api

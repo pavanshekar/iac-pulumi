@@ -1,6 +1,7 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
-  iacpulumi:amiId: ami-066b5d97e4d8cf42c
+  gcp:project: devproject-406022
+  iacpulumi:amiId: ami-0fdc27c191e9caea4
   iacpulumi:applicationPort: "8080"
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
@@ -13,6 +14,9 @@ config:
   iacpulumi:instanceClass: db.t2.micro
   iacpulumi:instanceType: t2.micro
   iacpulumi:keyName: key-pair
+  iacpulumi:mailgunApiKey:
+    secure: v1:MP1UKmYM1eeiEWM/:xgRpP1frO9dF5orsNurN6OsBLlrpAFJOiOEa57Vq5dMOVjVKnHwJXDo2JV0WyLt+o2jlEUMMfvuxq8cgQCcTVUpD
+  iacpulumi:mailgunDomain: demo.pavancloud.me
   iacpulumi:username: csye6225
   iacpulumi:volumeSize: "25"
   iacpulumi:volumeType: gp2
