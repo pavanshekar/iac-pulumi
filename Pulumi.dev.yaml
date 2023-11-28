@@ -1,7 +1,7 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
   gcp:project: devproject-406022
-  iacpulumi:amiId: ami-03ce9df34db976000
+  iacpulumi:amiId: ami-0246f381ebf2146ac
   iacpulumi:applicationPort: "8080"
   iacpulumi:dbName: csye6225
   iacpulumi:dbPassword:
