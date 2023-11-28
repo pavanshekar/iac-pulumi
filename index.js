@@ -292,7 +292,7 @@ availableZonesPromise.then(availableZones => {
         role: lambdaRole.arn,
         handler: "index.handler",
         code: new pulumi.asset.AssetArchive({
-            ".": new pulumi.asset.FileArchive("../serverless") // Path to your Lambda function code
+            ".": new pulumi.asset.FileArchive("../serverless")
         }),
         timeout: 30,
         environment: {
