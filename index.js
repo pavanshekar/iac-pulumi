@@ -292,7 +292,7 @@ availableZonesPromise.then(availableZones => {
         role: lambdaRole.arn,
         handler: "index.handler",
         code: new pulumi.asset.AssetArchive({
-            ".": new pulumi.asset.FileArchive("../serverless")
+            ".": new pulumi.asset.FileArchive("/Users/pavansomashekar/Desktop/serverless.zip")
         }),
         timeout: 30,
         environment: {
