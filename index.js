@@ -33,6 +33,8 @@ const mailgunDomain = config.require("mailgunDomain");
 const gcpConfig = new pulumi.Config("gcp"); 
 const gcpProjectId = gcpConfig.require("project");
 
+const certificateArn = config.require("certificateArn");
+
 const availableZonesPromise = aws.getAvailabilityZones({ region: currentRegion });
 
 availableZonesPromise.then(availableZones => {
@@ -51,7 +53,6 @@ availableZonesPromise.then(availableZones => {
         vpcId: vpc.id,
         description: "Security group for the load balancer",
         ingress: [
-            { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
             { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
         ],
         egress: [
@@ -63,8 +64,8 @@ availableZonesPromise.then(availableZones => {
         vpcId: vpc.id,
         description: "Security group for application servers",
         ingress: [
-            { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
             { protocol: "tcp", fromPort: applicationPort, toPort: applicationPort, securityGroups: [loadBalancerSecurityGroup.id] },
+            { protocol: "tcp", fromPort: 80, toPort: 80, securityGroups: [loadBalancerSecurityGroup.id] },
         ],
         egress: [
             { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"], ipv6CidrBlocks: ["::/0"], },
@@ -444,7 +445,10 @@ availableZonesPromise.then(availableZones => {
 
     const listener = new aws.lb.Listener("appListener", {
         loadBalancerArn: appLoadBalancer.arn,
-        port: 80,
+        port: 443,
+        protocol: "HTTPS",
+        sslPolicy: "ELBSecurityPolicy-2016-08",
+        certificateArn: certificateArn,
         defaultActions: [{
             type: "forward",
             targetGroupArn: targetGroup.arn,
