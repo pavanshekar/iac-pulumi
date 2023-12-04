@@ -34,9 +34,7 @@ Ensure your AWS credentials are configured by running `aws configure` and follow
 Initialize a new Pulumi stack and set required configuration variables:
 ```sh
 pulumi stack init <STACK_NAME>
-pulumi config set aws:region <AWS_REGION>
-pulumi config set vpcCidrBlock <CIDR_BLOCK>
-pulumi config set numberOfSubnets <NUMBER_OF_SUBNETS>
+pulumi config set <CONFIG_VARIABLE_NAME> <CONFIG_VARIABLE_VALUE>
 ```
 
 ## Deploying to AWS
@@ -61,3 +59,29 @@ pulumi destroy
 - **`Pulumi.<STACK_NAME>.yaml`**: Stack-specific configuration file.
 - **`.gitignore`**: Ignore rules for git.
 
+
+## Importing an SSL Certificate into AWS Certificate Manager
+
+If you have an existing SSL certificate that you want to use with your AWS infrastructure, you can import it into AWS Certificate Manager (ACM). Follow these steps:
+
+### Requirements
+
+- A valid SSL certificate, a private key, and an optional certificate chain file (in PEM format).
+- AWS CLI installed and configured with the necessary permissions.
+
+### Importing the Certificate
+
+1. **Locate Certificate Files**: Ensure you have the following files available:
+   - Certificate file (e.g., `certificate.pem`)
+   - Private key file (e.g., `private_key.pem`)
+   - Certificate chain file (optional, e.g., `certificate_chain.pem`)
+
+2. **Run the AWS CLI Command**: Use the following AWS CLI command to import the certificate:
+
+   ```sh
+   aws acm import-certificate \
+       --certificate fileb://path/to/certificate.pem \
+       --private-key fileb://path/to/private_key.pem \
+       [--certificate-chain fileb://path/to/certificate_chain.pem]
+    ```
+Replace path/to/certificate.pem, path/to/private_key.pem, and path/to/certificate_chain.pem with the actual paths to your certificate files. If you don't have a certificate chain file, omit that part of the command.

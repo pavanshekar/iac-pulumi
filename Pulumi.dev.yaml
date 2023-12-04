@@ -1,7 +1,7 @@
 encryptionsalt: v1:5Ty3WpXP8oA=:v1:MhUNhXIyHoKQ4cTP:ebT/CVwp8VDH8RlKt0CyVBQKubuGlw==
 config:
   gcp:project: devproject-406022
-  iacpulumi:amiId: ami-08e76aced0032697d
+  iacpulumi:amiId: ami-0c130f7d2e8898b1c
   iacpulumi:applicationPort: "8080"
   iacpulumi:certificateArn:
     secure: v1:3dp4yi7Vhc3ZHw8S:rnKt311SNS717bptSxHrb8HE0O/VQIUqLJQU8G4tdjv2ret0QjhgW60+D9WwNheXw0RlwSjJz0+3c6xLUX8g70GLooKNhaPNaWrVpjIf2uQsGu945HHDFEkpXNMYoqTjpsfS
